@@ -26,6 +26,7 @@ from libs.models import *
 from libs.utils import PolynomialLR
 from libs.utils.stream_metrics import StreamSegMetrics, AverageMeter
 
+import pudb
 
 def get_argparser():
     parser = argparse.ArgumentParser()
@@ -37,7 +38,7 @@ def get_argparser():
     parser.add_argument("--cuda", type=bool, default=True, help="GPU")
     parser.add_argument("--random_seed", type=int, default=1, help="random seed (default: 1)")
     parser.add_argument("--amp", action='store_true', default=False)
-    parser.add_argument("--val_interval", type=int, default=100, help="val_interval")
+    parser.add_argument("--val_interval", type=int, default=500, help="val_interval")
     
     return parser
                         
@@ -116,6 +117,8 @@ def main():
     
     device = get_device(opts.cuda)
     torch.backends.cudnn.benchmark = True
+
+    # pu.db
 
     # Dataset
     train_dataset = get_dataset(CONFIG.DATASET.NAME)(
@@ -236,6 +239,15 @@ def main():
     
     while True:
         for _, images, labels, cls_labels in train_loader:
+            # print(images[0, :, :, :].shape)
+            # images_np = images[0, :, :, :].cpu().numpy().transpose(1, 2, 0)  # make sure tensor is on cpu
+            # labels_np = labels[0, :, :].cpu().numpy()  # make sure tensor is on cpu
+            # print(labels_np)
+            # cv2.imwrite("image.png", images_np)
+            # cv2.imwrite("label.png", labels_np)
+
+
+            # pu.db
             curr_iter += 1
             loss = 0
             
@@ -243,6 +255,7 @@ def main():
             
             with torch.cuda.amp.autocast(enabled=opts.amp):
                 # Propagate forward
+                model.train()
                 logits = model(images.to(device))
 
                 # Loss
@@ -280,6 +293,7 @@ def main():
             # validation
             if curr_iter % opts.val_interval == 0:
                 print("... validation")
+                model.eval()
                 metrics.reset()
                 with torch.no_grad():
                     for _, images, labels, _ in valid_loader:
@@ -290,6 +304,7 @@ def main():
 
                         # Pixel-wise labeling
                         _, H, W = labels.shape
+                        # print(logits)
                         logits = F.interpolate(logits, size=(H, W), 
                                                mode="bilinear", align_corners=False)
                         preds = torch.argmax(logits, dim=1).cpu().numpy()

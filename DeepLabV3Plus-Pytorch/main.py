@@ -293,7 +293,8 @@ def main():
         }, path)
         print("Model saved as %s" % path)
     
-    utils.mkdir('checkpoints')
+    # utils.mkdir('checkpoints')
+    utils.mkdir(os.path.join(opts.data_root, 'checkpoints'))
     # Restore
     best_score = 0.0
     cur_itrs = 0
@@ -382,8 +383,9 @@ def main():
                 print(metrics.to_str(val_score))
                 if val_score['Mean IoU'] > best_score:  # save best model
                     best_score = val_score['Mean IoU']
-                    save_ckpt('checkpoints/best_%s_%s_os%d.pth' %
-                              (opts.model, opts.dataset,opts.output_stride))
+                    # save_ckpt('checkpoints/best_%s_%s_os%d.pth' %
+                    #           (opts.model, opts.dataset,opts.output_stride))
+                    save_ckpt(opts.ckpt)
 
                 if vis is not None:  # visualize validation score and samples
                     vis.vis_scalar("[Val] Overall Acc", cur_itrs, val_score['Overall Acc'])

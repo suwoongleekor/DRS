@@ -7,7 +7,7 @@ dependencies:
   # - clang # For MacOS
   # - clangxx # For MacOS
   - click
-  - cudatoolkit=10.0
+  - cudatoolkit=11.0
   - cython
   - matplotlib
   - pydensecrf

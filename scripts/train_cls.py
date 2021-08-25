@@ -12,7 +12,8 @@ import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
 
-from models.vgg import vgg16
+# from models.vgg import vgg16
+from models.vgg_CAAS import vgg16
 from utils.my_optim import reduce_lr
 from utils.avgMeter import AverageMeter
 from utils.LoadData import train_data_loader, valid_data_loader
@@ -20,6 +21,8 @@ from utils.Metrics import Cls_Accuracy, IOUMetric
 from utils.util import output_visualize
 from tqdm import trange, tqdm
 from torch.utils.tensorboard import SummaryWriter
+
+import pudb
 
 
 def get_arguments():
@@ -44,11 +47,19 @@ def get_arguments():
     parser.add_argument("--delta", type=float, default=0, help='set 0 for the learnable DRS')
     parser.add_argument("--alpha", type=float, default=0.20, help='object cues for the pseudo seg map generation')
 
+    parser.add_argument("--loss_cls_aware_mode", type=str, default='None')  # 'None', 'cls_aware'
+    parser.add_argument("--lambda_cls_aware", type=float, default=0.0)
+    parser.add_argument("--lambda_cls", type=float, default=1.0)
+    parser.add_argument("--from_scratch", action="store_true")
+
     return parser.parse_args()
 
 
 def get_model(args):
-    model = vgg16(pretrained=True, delta=args.delta) 
+    if args.from_scratch:
+        model = vgg16(pretrained=False, delta=args.delta)
+    else:
+        model = vgg16(pretrained=True, delta=args.delta)
 
     model = torch.nn.DataParallel(model).cuda()
     param_groups = model.module.get_parameter_groups()
@@ -134,25 +145,56 @@ def validate(current_epoch):
 
 def train(current_epoch):
     train_loss = AverageMeter()
+    train_loss_cls = AverageMeter()
+    train_loss_cls_aware = AverageMeter()
+
     cls_acc_matrix = Cls_Accuracy()
+    cls_aware_acc_matrix = Cls_Accuracy()
 
     model.train()
-    
+
+    cls_aware_scale = np.array([0, 0, 1./14, 1./14, 1./14, 1./14, 1./14, 1./14, 1./14, 1./14
+                                , 1./14, 1./14, 1./14, 1./14, 1./14, 1./14])
+    print('cls_aware_scale: ', cls_aware_scale)
+
+    cls_aware_scale_pt = torch.from_numpy(cls_aware_scale)
+    cls_aware_scale_pt = cls_aware_scale_pt.to('cuda')
+
     global_counter = args.global_counter
 
     """ learning rate decay """
     res = reduce_lr(args, optimizer, current_epoch)
 
     for idx, dat in enumerate(train_loader):
+        # if idx>50:
+        #     break
 
         img, label, _ = dat
         label = label.to('cuda', non_blocking=True)
         img = img.to('cuda', non_blocking=True)
 
-        logit = model(img)
+        logit, route_outs, route_classifier_outs = model(img)
+
+        loss_cls_aware = torch.zeros([1], device='cuda')
+
+        if args.loss_cls_aware_mode == 'cls_aware':
+            for j, route_classifier_out in enumerate(route_classifier_outs):
+                # print('route_classifier_out: ', route_classifier_out)
+                # print('route_classifier_out.shape: ', route_classifier_out.shape)
+                # print('cls_aware_scale_pt.shape: ', cls_aware_scale_pt.shape)
+                # print('cls_aware_scale_pt[j]: ', cls_aware_scale_pt[j])
+                loss_cls_aware += (F.multilabel_soft_margin_loss(route_classifier_out, label) * cls_aware_scale_pt[j])
+        elif args.loss_cls_aware_mode == 'None':
+            pass
+        else:
+            print('Not supported loss_att_mode')
+
+
 
         """ classification loss """
-        loss = F.multilabel_soft_margin_loss(logit, label)
+        loss_cls = F.multilabel_soft_margin_loss(logit, label)
+
+        loss = args.lambda_cls * loss_cls + args.lambda_cls_aware * loss_cls_aware
 
         """ backprop """
         optimizer.zero_grad()
@@ -160,16 +202,25 @@ def train(current_epoch):
         optimizer.step()
 
         cls_acc_matrix.update(logit, label)
+        cls_aware_acc_matrix.update(route_classifier_outs[-1], label)
+
         train_loss.update(loss.data.item(), img.size()[0])
+        train_loss_cls.update(loss_cls.data.item(), img.size()[0])
+        train_loss_cls_aware.update(loss_cls_aware.data.item(), img.size()[0])
         
         global_counter += 1
 
         """ tensorboard log """
         if global_counter % args.show_interval == 0:
             train_cls_acc = cls_acc_matrix.compute_avg_acc()
+            train_cls_aware_acc = cls_aware_acc_matrix.compute_avg_acc()
 
             writer.add_scalar('train loss', train_loss.avg, global_counter)
+            writer.add_scalar('train loss cls', train_loss_cls.avg, global_counter)
+            writer.add_scalar('train loss cls aware', train_loss_cls_aware.avg, global_counter)
+
             writer.add_scalar('train acc', train_cls_acc, global_counter)
+            writer.add_scalar('train acc cls aware', train_cls_aware_acc, global_counter)
 
             print('Epoch: [{}][{}/{}]\t'
                   'LR: {:.5f}\t'
@@ -184,6 +235,8 @@ def train(current_epoch):
     
     
 if __name__ == '__main__':
+    # pu.db
+
     args = get_arguments()
     
     nGPU = torch.cuda.device_count()
@@ -227,5 +280,17 @@ if __name__ == '__main__':
                 'iter': args.global_counter,
                 'miou': score,
             }
+
+            # pu.db
+
+            state_dict = state['model']
+            key_to_delete = []
+            for k in state_dict.keys():
+                if 'classifier_route' in k:
+                    key_to_delete.append(k)
+
+            for k in key_to_delete:
+                del state_dict[k]
+
             model_file = os.path.join(args.save_folder, 'best.pth')
             torch.save(state, model_file)

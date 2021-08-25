@@ -63,7 +63,7 @@ class VOCAug(_BaseDataset):
         super(VOCAug, self).__init__(**kwargs)
 
     def _set_files(self):
-        self.root = osp.join(self.root, "VOC{}".format(self.year))
+        # self.root = osp.join(self.root, "VOC{}".format(self.year))
         self.image_dir_path = osp.join(self.root, 'JPEGImages')
         self.label_dir_path = osp.join(self.root, self.gt_path)
     
@@ -75,9 +75,12 @@ class VOCAug(_BaseDataset):
         image_id = self.image_ids[index]
         image_path = osp.join(self.image_dir_path, image_id + '.jpg')
         label_path = osp.join(self.label_dir_path, image_id + '.png')
+
+        # print(label_path)
         
         image = cv2.imread(image_path, cv2.IMREAD_COLOR).astype(np.float32)
         label = np.asarray(Image.open(label_path), dtype=np.int32) if osp.exists(label_path) else np.zeros((100, 100))
+        # print(label.shape)
         cls_label = self.cls_labels[index]
         
         return image_id, image, label, cls_label

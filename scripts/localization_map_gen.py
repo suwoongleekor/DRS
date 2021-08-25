@@ -23,11 +23,13 @@ parser.add_argument("--num_classes", type=int, default=20)
 parser.add_argument("--num_workers", type=int, default=2)
 parser.add_argument("--checkpoint", type=str)
 parser.add_argument("--delta", type=float, default=0, help='set 0 for the learnable DRS')
+parser.add_argument("--out_dir", type=str, default="localization_maps", help='output localization map directory')
 
 args = parser.parse_args()
 print(args)
 
-output_dir = os.path.join(args.img_dir, "localization_maps")
+# output_dir = os.path.join(args.img_dir, "localization_maps")
+output_dir = os.path.join(args.img_dir, args.out_dir)
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 
