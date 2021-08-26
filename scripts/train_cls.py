@@ -14,6 +14,7 @@ import torch.nn.functional as F
 
 # from models.vgg import vgg16
 from models.vgg_CAAS import vgg16
+from models.resnet import resnet50
 from utils.my_optim import reduce_lr
 from utils.avgMeter import AverageMeter
 from utils.LoadData import train_data_loader, valid_data_loader
@@ -51,15 +52,22 @@ def get_arguments():
     parser.add_argument("--lambda_cls_aware", type=float, default=0.0)
     parser.add_argument("--lambda_cls", type=float, default=1.0)
     parser.add_argument("--from_scratch", action="store_true")
+    parser.add_argument("--model", type=str, default='vgg16')  # 'vgg16', 'resnet50'
 
     return parser.parse_args()
 
 
 def get_model(args):
-    if args.from_scratch:
-        model = vgg16(pretrained=False, delta=args.delta)
+    if args.model == 'resnet50':
+        model = resnet50(pretrained=~args.from_scratch, delta=args.delta, num_classes=20)
     else:
-        model = vgg16(pretrained=True, delta=args.delta)
+        model = vgg16(pretrained=~args.from_scratch, delta=args.delta)
+
+
+    # if args.from_scratch:
+    #     model = vgg16(pretrained=False, delta=args.delta)
+    # else:
+    #     model = vgg16(pretrained=True, delta=args.delta)
 
     model = torch.nn.DataParallel(model).cuda()
     param_groups = model.module.get_parameter_groups()
@@ -173,7 +181,10 @@ def train(current_epoch):
         label = label.to('cuda', non_blocking=True)
         img = img.to('cuda', non_blocking=True)
 
-        logit, route_outs, route_classifier_outs = model(img)
+        if args.loss_cls_aware_mode == 'cls_aware':
+            logit, route_outs, route_classifier_outs = model(img)
+        else:
+            logit = model(img)
 
         loss_cls_aware = torch.zeros([1], device='cuda')
 
@@ -202,25 +213,35 @@ def train(current_epoch):
         optimizer.step()
 
         cls_acc_matrix.update(logit, label)
-        cls_aware_acc_matrix.update(route_classifier_outs[-1], label)
+
+        if args.loss_cls_aware_mode == 'cls_aware':
+            cls_aware_acc_matrix.update(route_classifier_outs[-1], label)
 
         train_loss.update(loss.data.item(), img.size()[0])
         train_loss_cls.update(loss_cls.data.item(), img.size()[0])
-        train_loss_cls_aware.update(loss_cls_aware.data.item(), img.size()[0])
+
+        if args.loss_cls_aware_mode == 'cls_aware':
+            train_loss_cls_aware.update(loss_cls_aware.data.item(), img.size()[0])
         
         global_counter += 1
 
         """ tensorboard log """
         if global_counter % args.show_interval == 0:
             train_cls_acc = cls_acc_matrix.compute_avg_acc()
-            train_cls_aware_acc = cls_aware_acc_matrix.compute_avg_acc()
+
+            if args.loss_cls_aware_mode == 'cls_aware':
+                train_cls_aware_acc = cls_aware_acc_matrix.compute_avg_acc()
 
             writer.add_scalar('train loss', train_loss.avg, global_counter)
             writer.add_scalar('train loss cls', train_loss_cls.avg, global_counter)
-            writer.add_scalar('train loss cls aware', train_loss_cls_aware.avg, global_counter)
+
+            if args.loss_cls_aware_mode == 'cls_aware':
+                writer.add_scalar('train loss cls aware', train_loss_cls_aware.avg, global_counter)
 
             writer.add_scalar('train acc', train_cls_acc, global_counter)
-            writer.add_scalar('train acc cls aware', train_cls_aware_acc, global_counter)
+
+            if args.loss_cls_aware_mode == 'cls_aware':
+                writer.add_scalar('train acc cls aware', train_cls_aware_acc, global_counter)
 
             print('Epoch: [{}][{}/{}]\t'
                   'LR: {:.5f}\t'

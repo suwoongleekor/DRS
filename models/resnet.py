@@ -3,6 +3,7 @@ import torch.nn as nn
 # from .res_utils import load_state_dict_from_url
 import torch.utils.model_zoo as model_zoo
 import torch.nn.functional as F
+import math
 
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
@@ -23,6 +24,74 @@ model_urls = {
 }
 
 
+
+class DRS_learnable(nn.Module):
+    """ 
+    DRS learnable setting
+    hyperparameter X , additional training paramters O 
+    """
+    def __init__(self, channel):
+        super(DRS_learnable, self).__init__()
+        self.relu = nn.ReLU()
+        
+        self.global_max_pool = nn.AdaptiveMaxPool2d(1)
+        self.global_avg_pool = nn.AdaptiveAvgPool2d(1)
+        
+        self.fc = nn.Sequential(
+            nn.Linear(channel, channel, bias=False),
+            nn.Sigmoid(),
+        )
+        
+    def forward(self, x):
+        b, c, _, _ = x.size()
+
+        x = self.relu(x)
+        
+        """ 1: max extractor """
+        x_max = self.global_max_pool(x).view(b, c, 1, 1)
+        x_max = x_max.expand_as(x)
+        
+        """ 2: suppression controller"""
+        control = self.global_avg_pool(x).view(b, c)
+        control = self.fc(control).view(b, c, 1, 1)
+        control = control.expand_as(x)
+
+        """ 3: suppressor"""
+        x = torch.min(x, x_max * control)
+            
+        return x
+        
+    
+class DRS(nn.Module):
+    """ 
+    DRS non-learnable setting
+    hyperparameter O , additional training paramters X
+    """
+    def __init__(self, delta):
+        super(DRS, self).__init__()
+        self.relu = nn.ReLU()
+        self.delta = delta
+        
+        self.global_max_pool = nn.AdaptiveMaxPool2d(1)
+        
+    def forward(self, x):
+        b, c, _, _ = x.size()
+        
+        x = self.relu(x)
+        
+        """ 1: max extractor """
+        x_max = self.global_max_pool(x).view(b, c, 1, 1)
+        x_max = x_max.expand_as(x)
+        
+        """ 2: suppression controller"""
+        control = self.delta
+        
+        """ 3: suppressor"""
+        x = torch.min(x, x_max * control)
+        
+        return x
+
+
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
     """3x3 convolution with padding"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
@@ -38,7 +107,7 @@ class BasicBlock(nn.Module):
     expansion = 1
 
     def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
-                 base_width=64, dilation=1, norm_layer=None):
+                 base_width=64, dilation=1, norm_layer=None, delta=0):
         super(BasicBlock, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
@@ -54,6 +123,24 @@ class BasicBlock(nn.Module):
         self.bn2 = norm_layer(planes)
         self.downsample = downsample
         self.stride = stride
+        self.relu_out = DRS_learnable(planes * self.expansion) if delta == 0 else DRS(delta)
+        self._initialize_weights(self.relu_out)
+
+    def _initialize_weights(self, layer):
+        for m in layer.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            elif isinstance(m, nn.Linear):
+                m.weight.data.normal_(0, 0.01)
+                if m.bias is not None:
+                    m.bias.data.zero_()
 
     def forward(self, x):
         identity = x
@@ -69,7 +156,7 @@ class BasicBlock(nn.Module):
             identity = self.downsample(x)
 
         out += identity
-        out = self.relu(out)
+        out = self.relu_out(out)
 
         return out
 
@@ -84,7 +171,7 @@ class Bottleneck(nn.Module):
     expansion = 4
 
     def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
-                 base_width=64, dilation=1, norm_layer=None):
+                 base_width=64, dilation=1, norm_layer=None, delta=0):
         super(Bottleneck, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
@@ -99,6 +186,24 @@ class Bottleneck(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
         self.stride = stride
+        self.relu_out = DRS_learnable(planes * self.expansion) if delta == 0 else DRS(delta)
+        self._initialize_weights(self.relu_out)
+
+    def _initialize_weights(self, layer):
+        for m in layer.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            elif isinstance(m, nn.Linear):
+                m.weight.data.normal_(0, 0.01)
+                if m.bias is not None:
+                    m.bias.data.zero_()
 
     def forward(self, x):
         identity = x
@@ -118,7 +223,7 @@ class Bottleneck(nn.Module):
             identity = self.downsample(x)
 
         out += identity
-        out = self.relu(out)
+        out = self.relu_out(out)
 
         return out
 
@@ -127,7 +232,7 @@ class ResNet(nn.Module):
 
     def __init__(self, block, layers, num_classes=1000, zero_init_residual=False,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None,
-                 norm_layer=None, init_weights=True):
+                 norm_layer=None, init_weights=True, delta=0):
         super(ResNet, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
@@ -147,7 +252,7 @@ class ResNet(nn.Module):
         self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3,
                                bias=False)
         self.bn1 = norm_layer(self.inplanes)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = DRS_learnable(64) if delta == 0 else DRS(delta)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
@@ -160,16 +265,20 @@ class ResNet(nn.Module):
         # self.fc = nn.Linear(512 * block.expansion, num_classes)
 
         self.extra_conv1 = nn.Conv2d(512 * block.expansion, 512 * block.expansion, kernel_size=3, padding=1)
+        self.extra_relu1 = DRS_learnable(512 * block.expansion) if delta == 0 else DRS(delta)
         self.extra_conv2 = nn.Conv2d(512 * block.expansion, 512 * block.expansion, kernel_size=3, padding=1)
+        self.extra_relu2 = DRS_learnable(512 * block.expansion) if delta == 0 else DRS(delta)
         self.extra_conv3 = nn.Conv2d(512 * block.expansion, 512 * block.expansion, kernel_size=3, padding=1)
+        self.extra_relu3 = DRS_learnable(512 * block.expansion) if delta == 0 else DRS(delta)
         self.extra_conv4 = nn.Conv2d(512 * block.expansion, num_classes, kernel_size=1)
-
-        self.activation = nn.ReLU()
 
         if init_weights:
             self._initialize_weights(self.extra_conv1)
+            self._initialize_weights(self.extra_relu1)
             self._initialize_weights(self.extra_conv2)
+            self._initialize_weights(self.extra_relu2)
             self._initialize_weights(self.extra_conv3)
+            self._initialize_weights(self.extra_relu3)
             self._initialize_weights(self.extra_conv4)
 
         for m in self.modules():
@@ -192,15 +301,18 @@ class ResNet(nn.Module):
     def _initialize_weights(self, layer):
         for m in layer.modules():
             if isinstance(m, nn.Conv2d):
-                m.weight.data.normal_(mean=0, std=0.01)
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
                 if m.bias is not None:
                     m.bias.data.zero_()
             elif isinstance(m, nn.BatchNorm2d):
                 m.weight.data.fill_(1)
-                m.bias.data.zero_()
+                if m.bias is not None:
+                    m.bias.data.zero_()
             elif isinstance(m, nn.Linear):
                 m.weight.data.normal_(0, 0.01)
-                m.bias.data.zero_()
+                if m.bias is not None:
+                    m.bias.data.zero_()
 
     def _make_layer(self, block, planes, blocks, stride=1, dilate=False):
         norm_layer = self._norm_layer
@@ -231,38 +343,81 @@ class ResNet(nn.Module):
         if size is None:
             size = x.size()[2:]
 
+        # print(x.shape)
+
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
 
+        # print(x.shape)
+
         x = self.layer1(x)
+        # print(x.shape)
+
         x = self.layer2(x)
+        # print(x.shape)
+
         x = self.layer3(x)
+        # print(x.shape)
+
         x = self.layer4(x)
+        # print(x.shape)
 
         # extra layer
         x = self.extra_conv1(x)
-        x = self.activation(x)
+        x = self.extra_relu1(x)
         x = self.extra_conv2(x)
-        x = self.activation(x)
+        x = self.extra_relu2(x)
         x = self.extra_conv3(x)
-        x = self.activation(x)
+        x = self.extra_relu3(x)
         x = self.extra_conv4(x)
 
-        x = F.interpolate(x, size=size, mode='bilinear', align_corners=True)
+        logit = self.last_linear(x)
 
-        # x = self.avgpool(x)
-        # x = torch.flatten(x, 1)
-        # x = self.fc(x)
+        if label is None:
+            # for training
+            return logit
 
-        if label is not None:
-            x = x * label[:, :, None, None]  # clean
+        else:
+            # for validation
+            cam = self.cam_normalize(x.detach(), size, label)
 
+            return logit, cam
+
+    def last_linear(self, x):
+        x = F.avg_pool2d(x, kernel_size=(x.size(2), x.size(3)), padding=0)
+        x = x.view(-1, 20)
         return x
+
+    def cam_normalize(self, cam, size, label):
+        cam = F.relu(cam)
+        cam = F.interpolate(cam, size=size, mode='bilinear', align_corners=True)
+        cam /= F.adaptive_max_pool2d(cam, 1) + 1e-5
+
+        cam = cam * label[:, :, None, None]  # clean
+
+        return cam
 
     def forward(self, x, label=None, size=None):
         return self._forward_impl(x, label=label, size=size)
+
+    def get_parameter_groups(self):
+        groups = ([], [], [], [])
+
+        for name, value in self.named_parameters():
+
+            if 'extra' in name or 'last_linear' in name:
+                if 'weight' in name:
+                    groups[2].append(value)
+                else:
+                    groups[3].append(value)
+            else:
+                if 'weight' in name:
+                    groups[0].append(value)
+                else:
+                    groups[1].append(value)
+        return groups
 
 
 def _resnet(arch, block, layers, pretrained, progress, **kwargs):
@@ -402,7 +557,7 @@ def wide_resnet101_2(pretrained=False, progress=True, **kwargs):
 
 if __name__ == '__main__':
 
-    model = resnet50(pretrained=True, num_classes=20)
+    model = resnet50(pretrained=True, num_classes=20, delta=0.6)
 
     input = torch.randn(1, 3, 321, 321)
 
@@ -410,3 +565,12 @@ if __name__ == '__main__':
 
     print(out)
     print(out.shape)
+    # print(model)
+    # for name, layer in model._modules.items():
+    #     print(name)
+
+    # print(model.layer1.0.relu)
+
+
+
+

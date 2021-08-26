@@ -11,6 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from models.vgg import vgg16
+from models.resnet import resnet50
 from utils.decode import decode_seg_map_sequence
 from utils.LoadData import test_data_loader
 from utils.Metrics import Cls_Accuracy, RunningConfusionMatrix, IOUMetric
@@ -28,12 +29,18 @@ parser.add_argument("--num_workers", type=int, default=2)
 parser.add_argument("--checkpoint", type=str)
 parser.add_argument("--delta", type=float, default=0, help='set 0 for the learnable DRS')
 parser.add_argument("--alpha", type=float, default=0.20, help='object cues for the pseudo seg map generation')
+
+parser.add_argument("--model", type=str, default='vgg16')  # 'vgg16', 'resnet50'
 args = parser.parse_args()
 print(args)
 
 
 """ model load """
-model = vgg16(pretrained=True, delta=args.delta)
+if args.model == 'resnet50':
+    model = resnet50(pretrained=True, delta=args.delta, num_classes=args.num_classes)
+else:
+    model = vgg16(pretrained=True, delta=args.delta)
+
 model = model.cuda()
 model.eval()
 

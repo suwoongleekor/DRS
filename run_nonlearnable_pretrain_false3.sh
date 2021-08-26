@@ -35,7 +35,7 @@ CUDA_VISIBLE_DEVICES=${C1},${C2} python scripts/train_refine.py \
     --epoch=30 \
     --decay_points='10,20' \
     --logdir=logs/Refine_${CASE} \
-    --save_folder=checkpoints/${CASE} \
+    --save_folder=checkpoints/Refine_${CASE} \
     --show_interval=50
 
 

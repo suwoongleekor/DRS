@@ -9,6 +9,7 @@ import cv2
 import torch.nn.functional as F
 
 from models.vgg import vgg16
+from models.resnet import resnet50
 from utils.decode import decode_seg_map_sequence
 from utils.LoadData import test_data_loader
 from utils.decode import decode_segmap
@@ -25,6 +26,8 @@ parser.add_argument("--checkpoint", type=str)
 parser.add_argument("--delta", type=float, default=0, help='set 0 for the learnable DRS')
 parser.add_argument("--out_dir", type=str, default="localization_maps", help='output localization map directory')
 
+parser.add_argument("--model", type=str, default='vgg16')  # 'vgg16', 'resnet50'
+
 args = parser.parse_args()
 print(args)
 
@@ -34,7 +37,11 @@ if not os.path.exists(output_dir):
     os.makedirs(output_dir)
 
 """ model load """
-model = vgg16(pretrained=True, delta=args.delta)
+if args.model == 'resnet50':
+    model = resnet50(pretrained=True, delta=args.delta, num_classes=args.num_classes)
+else:
+    model = vgg16(pretrained=True, delta=args.delta)
+# model = vgg16(pretrained=True, delta=args.delta)
 model = model.cuda()
 model.eval()
     

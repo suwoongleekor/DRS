@@ -10,6 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from models.vgg_refine import vgg16
+from models.resnet_refine import resnet50
 #from models.vgg import vgg16
 from utils.Metrics import IOUMetric
 from utils.LoadData import test_data_loader
@@ -27,6 +28,8 @@ parser.add_argument("--checkpoint", type=str)
 parser.add_argument("--delta", type=float, default=0, help='set 0 for the learnable DRS')
 parser.add_argument("--alpha", type=float, default=0.20)
 
+parser.add_argument("--model", type=str, default='vgg16')  # 'vgg16', 'resnet50'
+
 args = parser.parse_args()
 print(args)
 
@@ -36,7 +39,11 @@ if not os.path.exists(output_dir):
 
 """ model load """
 #model = vgg16(pretrained=True, delta=args.delta)
-model = vgg16()
+# model = vgg16()
+if args.model == 'resnet50':
+    model = resnet50(num_classes=args.num_classes)
+else:
+    model = vgg16()
 model = model.cuda()
 model.eval()
     
