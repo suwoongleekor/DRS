@@ -99,14 +99,35 @@ class DRS(nn.Module):
         
         return x
 
-    
+
+
 class VGG(nn.Module):
-    def __init__(self, features, delta=0, num_classes=20, init_weights=True):
+    def __init__(self, features, delta=0, num_classes=20, init_weights=True, attention_type="NONE"):
         
         super(VGG, self).__init__()
         
         self.features = features
-        
+        self.attention_type = attention_type
+
+        if self.attention_type == "SE":
+            self.layer1_se1 = SELayer(64, num_classes=num_classes)
+            self.layer1_se2 = SELayer(64, num_classes=num_classes)
+            self.layer2_se1 = SELayer(128, num_classes=num_classes)
+            self.layer2_se2 = SELayer(128, num_classes=num_classes)
+            self.layer3_se1 = SELayer(256, num_classes=num_classes)
+            self.layer3_se2 = SELayer(256, num_classes=num_classes)
+            self.layer3_se3 = SELayer(256, num_classes=num_classes)
+            self.layer4_se1 = SELayer(512, num_classes=num_classes)
+            self.layer4_se2 = SELayer(512, num_classes=num_classes)
+            self.layer4_se3 = SELayer(512, num_classes=num_classes)
+            self.layer5_se1 = SELayer(512, num_classes=num_classes)
+            self.layer5_se2 = SELayer(512, num_classes=num_classes)
+            self.layer5_se3 = SELayer(512, num_classes=num_classes)
+            self.extra_se1 = SELayer(512, num_classes=num_classes)
+            self.extra_se2 = SELayer(512, num_classes=num_classes)
+            self.extra_se3 = SELayer(512, num_classes=num_classes)
+
+
         self.layer1_conv1 = features[0]
         self.layer1_relu1 = DRS_learnable(64) if delta == 0 else DRS(delta)
         self.layer1_conv2 = features[2]
@@ -151,6 +172,24 @@ class VGG(nn.Module):
         self.extra_conv4 = nn.Conv2d(512, 20, kernel_size=1)
         
         if init_weights:
+            if self.attention_type == "SE":
+                self._initialize_weights(self.layer1_se1)
+                self._initialize_weights(self.layer1_se2)
+                self._initialize_weights(self.layer2_se1)
+                self._initialize_weights(self.layer2_se2)
+                self._initialize_weights(self.layer3_se1)
+                self._initialize_weights(self.layer3_se2)
+                self._initialize_weights(self.layer3_se3)
+                self._initialize_weights(self.layer4_se1)
+                self._initialize_weights(self.layer4_se2)
+                self._initialize_weights(self.layer4_se3)
+                self._initialize_weights(self.layer5_se1)
+                self._initialize_weights(self.layer5_se2)
+                self._initialize_weights(self.layer5_se3)
+                self._initialize_weights(self.extra_se1)
+                self._initialize_weights(self.extra_se2)
+                self._initialize_weights(self.extra_se3)
+
             self._initialize_weights(self.extra_conv1)
             self._initialize_weights(self.extra_relu1)
             self._initialize_weights(self.extra_conv2)
@@ -175,65 +214,132 @@ class VGG(nn.Module):
         
 
     def forward(self, x, label=None, size=None):
+        route_outs = torch.Tensor(0).to(x.device)
+        route_classifier_outs = []
+
         if size is None:
             size = x.size()[2:]
         
         # layer1
         x = self.layer1_conv1(x)
+        if self.attention_type == "SE":
+            x, route_out, route_classifier_out = self.layer1_se1(x)
+            route_outs = torch.cat((route_outs, route_out), 1)
+            route_classifier_outs.append(route_classifier_out)
         x = self.layer1_relu1(x)
         x = self.layer1_conv2(x)
+        if self.attention_type == "SE":
+            x, route_out, route_classifier_out = self.layer1_se2(x)
+            route_outs = torch.cat((route_outs, route_out), 1)
+            route_classifier_outs.append(route_classifier_out)
         x = self.layer1_relu2(x)
         x = self.layer1_maxpool(x)
         
         # layer2
         x = self.layer2_conv1(x)
+        if self.attention_type == "SE":
+            x, route_out, route_classifier_out = self.layer2_se1(x)
+            route_outs = torch.cat((route_outs, route_out), 1)
+            route_classifier_outs.append(route_classifier_out)
         x = self.layer2_relu1(x)
         x = self.layer2_conv2(x)
+        if self.attention_type == "SE":
+            x, route_out, route_classifier_out = self.layer2_se2(x)
+            route_outs = torch.cat((route_outs, route_out), 1)
+            route_classifier_outs.append(route_classifier_out)
         x = self.layer2_relu2(x)
         x = self.layer2_maxpool(x)
         
         # layer3
         x = self.layer3_conv1(x)
+        if self.attention_type == "SE":
+            x, route_out, route_classifier_out = self.layer3_se1(x)
+            route_outs = torch.cat((route_outs, route_out), 1)
+            route_classifier_outs.append(route_classifier_out)
         x = self.layer3_relu1(x)
         x = self.layer3_conv2(x)
+        if self.attention_type == "SE":
+            x, route_out, route_classifier_out = self.layer3_se2(x)
+            route_outs = torch.cat((route_outs, route_out), 1)
+            route_classifier_outs.append(route_classifier_out)
         x = self.layer3_relu2(x)
         x = self.layer3_conv3(x)
+        if self.attention_type == "SE":
+            x, route_out, route_classifier_out = self.layer3_se3(x)
+            route_outs = torch.cat((route_outs, route_out), 1)
+            route_classifier_outs.append(route_classifier_out)
         x = self.layer3_relu3(x)
         x = self.layer3_maxpool(x)
         
         # layer4
         x = self.layer4_conv1(x)
+        if self.attention_type == "SE":
+            x, route_out, route_classifier_out = self.layer4_se1(x)
+            route_outs = torch.cat((route_outs, route_out), 1)
+            route_classifier_outs.append(route_classifier_out)
         x = self.layer4_relu1(x)
         x = self.layer4_conv2(x)
+        if self.attention_type == "SE":
+            x, route_out, route_classifier_out = self.layer4_se2(x)
+            route_outs = torch.cat((route_outs, route_out), 1)
+            route_classifier_outs.append(route_classifier_out)
         x = self.layer4_relu2(x)
         x = self.layer4_conv3(x)
+        if self.attention_type == "SE":
+            x, route_out, route_classifier_out = self.layer4_se3(x)
+            route_outs = torch.cat((route_outs, route_out), 1)
+            route_classifier_outs.append(route_classifier_out)
         x = self.layer4_relu3(x)
         x = self.layer4_maxpool(x)
         
         # layer5
         x = self.layer5_conv1(x)
+        if self.attention_type == "SE":
+            x, route_out, route_classifier_out = self.layer5_se1(x)
+            route_outs = torch.cat((route_outs, route_out), 1)
+            route_classifier_outs.append(route_classifier_out)
         x = self.layer5_relu1(x)
         x = self.layer5_conv2(x)
+        if self.attention_type == "SE":
+            x, route_out, route_classifier_out = self.layer5_se2(x)
+            route_outs = torch.cat((route_outs, route_out), 1)
+            route_classifier_outs.append(route_classifier_out)
         x = self.layer5_relu2(x)
         x = self.layer5_conv3(x)
+        if self.attention_type == "SE":
+            x, route_out, route_classifier_out = self.layer5_se3(x)
+            route_outs = torch.cat((route_outs, route_out), 1)
+            route_classifier_outs.append(route_classifier_out)
         x = self.layer5_relu3(x)
         
         # extra layer
         x = self.extra_conv1(x)
+        if self.attention_type == "SE":
+            x, route_out, route_classifier_out = self.extra_se1(x)
+            route_outs = torch.cat((route_outs, route_out), 1)
+            route_classifier_outs.append(route_classifier_out)
         x = self.extra_relu1(x)
         x = self.extra_conv2(x)
+        if self.attention_type == "SE":
+            x, route_out, route_classifier_out = self.extra_se2(x)
+            route_outs = torch.cat((route_outs, route_out), 1)
+            route_classifier_outs.append(route_classifier_out)
         x = self.extra_relu2(x)
         x = self.extra_conv3(x)
+        if self.attention_type == "SE":
+            x, route_out, route_classifier_out = self.extra_se3(x)
+            route_outs = torch.cat((route_outs, route_out), 1)
+            route_classifier_outs.append(route_classifier_out)
         x = self.extra_relu3(x)
         x = self.extra_conv4(x)
         # ==============================
         
         logit = self.fc(x)
-        
+
         if label is None:
             # for training
-            return logit
-        
+            return logit, route_outs, route_classifier_outs
+
         else:
             # for validation
             cam = self.cam_normalize(x.detach(), size, label)
@@ -336,15 +442,26 @@ def vgg16(pretrained=True, delta=0):
     return model
 
 
+def se_vgg16(pretrained=True, delta=0, attention_type="SE"):
+    model = VGG(make_layers(cfg['D1']), delta=delta, attention_type=attention_type)
+
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['vgg16']), strict=False)
+
+    return model
+
+
 if __name__ == '__main__':
     import copy
     
-    model = vgg16(pretrained=True, delta=0.6)
+    model = se_vgg16(pretrained=True, delta=0.6)
 
     print(model)
     
     input = torch.randn(2, 3, 321, 321)
 
-    out = model(input)
-    
+    out, _, _ = model(input)
+    print(out.shape)
+
     model.get_parameter_groups()
+

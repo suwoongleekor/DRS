@@ -111,7 +111,7 @@ class VGG(nn.Module):
         self.layer4_conv3 = features[21]
         self.layer4_relu3 = DRS_learnable(512) if delta == 0 else DRS(delta)
         self.layer4_maxpool = features[23]
-        
+
         self.layer5_conv1 = features[24]
         self.layer5_relu1 = DRS_learnable(512) if delta == 0 else DRS(delta)
         self.layer5_conv2 = features[26]
