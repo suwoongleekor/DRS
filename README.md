@@ -1,3 +1,12 @@
+# Under construction
+
+refined_pseudo_segmentation_labels_DRS_CAAS2:_
+
+https://www.dropbox.com/s/jbd39bm7x2y9pjs/refined_pseudo_segmentation_labels_DRS_CAAS2.zip?dl=0
+
+
+
+
 # Discriminative Region Suppression for Weakly-Supervised Semantic Segmentation (AAAI 2021)
 
 Official pytorch implementation of our paper:
