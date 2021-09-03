@@ -33,74 +33,6 @@ class SELayer(nn.Module):
         return x * y.view(b, c, 1, 1).expand_as(x), y, route_classifier_out
 
 
-class DRS_learnable(nn.Module):
-    """ 
-    DRS learnable setting
-    hyperparameter X , additional training paramters O 
-    """
-    def __init__(self, channel):
-        super(DRS_learnable, self).__init__()
-        self.relu = nn.ReLU()
-        
-        self.global_max_pool = nn.AdaptiveMaxPool2d(1)
-        self.global_avg_pool = nn.AdaptiveAvgPool2d(1)
-        
-        self.fc = nn.Sequential(
-            nn.Linear(channel, channel, bias=False),
-            nn.Sigmoid(),
-        )
-        
-    def forward(self, x):
-        b, c, _, _ = x.size()
-
-        x = self.relu(x)
-        
-        """ 1: max extractor """
-        x_max = self.global_max_pool(x).view(b, c, 1, 1)
-        x_max = x_max.expand_as(x)
-        
-        """ 2: suppression controller"""
-        control = self.global_avg_pool(x).view(b, c)
-        control = self.fc(control).view(b, c, 1, 1)
-        control = control.expand_as(x)
-
-        """ 3: suppressor"""
-        x = torch.min(x, x_max * control)
-            
-        return x
-        
-    
-class DRS(nn.Module):
-    """ 
-    DRS non-learnable setting
-    hyperparameter O , additional training paramters X
-    """
-    def __init__(self, delta):
-        super(DRS, self).__init__()
-        self.relu = nn.ReLU()
-        self.delta = delta
-        
-        self.global_max_pool = nn.AdaptiveMaxPool2d(1)
-        
-    def forward(self, x):
-        b, c, _, _ = x.size()
-        
-        x = self.relu(x)
-        
-        """ 1: max extractor """
-        x_max = self.global_max_pool(x).view(b, c, 1, 1)
-        x_max = x_max.expand_as(x)
-        
-        """ 2: suppression controller"""
-        control = self.delta
-        
-        """ 3: suppressor"""
-        x = torch.min(x, x_max * control)
-        
-        return x
-
-
-
 class VGG(nn.Module):
     def __init__(self, features, delta=0, num_classes=20, init_weights=True, attention_type="NONE"):
         
@@ -127,50 +59,48 @@ class VGG(nn.Module):
             self.extra_se2 = SELayer(512, num_classes=num_classes)
             self.extra_se3 = SELayer(512, num_classes=num_classes)
 
-
         self.layer1_conv1 = features[0]
-        self.layer1_relu1 = DRS_learnable(64) if delta == 0 else DRS(delta)
+        self.layer1_relu1 = features[1]
         self.layer1_conv2 = features[2]
-        self.layer1_relu2 = DRS_learnable(64) if delta == 0 else DRS(delta)
+        self.layer1_relu2 = features[3]
         self.layer1_maxpool = features[4]
-        
+
         self.layer2_conv1 = features[5]
-        self.layer2_relu1 = DRS_learnable(128) if delta == 0 else DRS(delta)
+        self.layer2_relu1 = features[6]
         self.layer2_conv2 = features[7]
-        self.layer2_relu2 = DRS_learnable(128) if delta == 0 else DRS(delta)
+        self.layer2_relu2 = features[8]
         self.layer2_maxpool = features[9]
-        
+
         self.layer3_conv1 = features[10]
-        self.layer3_relu1 = DRS_learnable(256) if delta == 0 else DRS(delta)
+        self.layer3_relu1 = features[11]
         self.layer3_conv2 = features[12]
-        self.layer3_relu2 = DRS_learnable(256) if delta == 0 else DRS(delta)
+        self.layer3_relu2 = features[13]
         self.layer3_conv3 = features[14]
-        self.layer3_relu3 = DRS_learnable(256) if delta == 0 else DRS(delta)
+        self.layer3_relu3 = features[15]
         self.layer3_maxpool = features[16]
-        
+
         self.layer4_conv1 = features[17]
-        self.layer4_relu1 = DRS_learnable(512) if delta == 0 else DRS(delta)
+        self.layer4_relu1 = features[18]
         self.layer4_conv2 = features[19]
-        self.layer4_relu2 = DRS_learnable(512) if delta == 0 else DRS(delta)
+        self.layer4_relu2 = features[20]
         self.layer4_conv3 = features[21]
-        self.layer4_relu3 = DRS_learnable(512) if delta == 0 else DRS(delta)
+        self.layer4_relu3 = features[22]
         self.layer4_maxpool = features[23]
 
         self.layer5_conv1 = features[24]
-        self.layer5_relu1 = DRS_learnable(512) if delta == 0 else DRS(delta)
+        self.layer5_relu1 = features[25]
         self.layer5_conv2 = features[26]
-        self.layer5_relu2 = DRS_learnable(512) if delta == 0 else DRS(delta)
+        self.layer5_relu2 = features[27]
         self.layer5_conv3 = features[28]
-        self.layer5_relu3 = DRS_learnable(512) if delta == 0 else DRS(delta)
+        self.layer5_relu3 = features[29]
         
         self.extra_conv1 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-        self.extra_relu1 = DRS_learnable(512) if delta == 0 else DRS(delta)
         self.extra_conv2 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-        self.extra_relu2 = DRS_learnable(512) if delta == 0 else DRS(delta)
         self.extra_conv3 = nn.Conv2d(512, 512, kernel_size=3, padding=1)
-        self.extra_relu3 = DRS_learnable(512) if delta == 0 else DRS(delta)
-        self.extra_conv4 = nn.Conv2d(512, 20, kernel_size=1)
-        
+        self.extra_conv4 = nn.Conv2d(512, num_classes, kernel_size=1)
+
+        self.activation = nn.ReLU()
+
         if init_weights:
             if self.attention_type == "SE":
                 self._initialize_weights(self.layer1_se1)
@@ -191,27 +121,10 @@ class VGG(nn.Module):
                 self._initialize_weights(self.extra_se3)
 
             self._initialize_weights(self.extra_conv1)
-            self._initialize_weights(self.extra_relu1)
             self._initialize_weights(self.extra_conv2)
-            self._initialize_weights(self.extra_relu2)
             self._initialize_weights(self.extra_conv3)
-            self._initialize_weights(self.extra_relu3)
             self._initialize_weights(self.extra_conv4)
             
-            self._initialize_weights(self.layer1_relu1)
-            self._initialize_weights(self.layer1_relu2)
-            self._initialize_weights(self.layer2_relu1)
-            self._initialize_weights(self.layer2_relu2)
-            self._initialize_weights(self.layer3_relu1)
-            self._initialize_weights(self.layer3_relu2)
-            self._initialize_weights(self.layer3_relu3)
-            self._initialize_weights(self.layer4_relu1)
-            self._initialize_weights(self.layer4_relu2)
-            self._initialize_weights(self.layer4_relu3)
-            self._initialize_weights(self.layer5_relu1)
-            self._initialize_weights(self.layer5_relu2)
-            self._initialize_weights(self.layer5_relu3)
-        
 
     def forward(self, x, label=None, size=None):
         route_outs = torch.Tensor(0).to(x.device)
@@ -318,51 +231,30 @@ class VGG(nn.Module):
         #     x, route_out, route_classifier_out = self.extra_se1(x)
         #     route_outs = torch.cat((route_outs, route_out), 1)
         #     route_classifier_outs.append(route_classifier_out)
-        x = self.extra_relu1(x)
+        x = self.activation(x)
         x = self.extra_conv2(x)
         # if self.attention_type == "SE":
         #     x, route_out, route_classifier_out = self.extra_se2(x)
         #     route_outs = torch.cat((route_outs, route_out), 1)
         #     route_classifier_outs.append(route_classifier_out)
-        x = self.extra_relu2(x)
+        x = self.activation(x)
         x = self.extra_conv3(x)
         # if self.attention_type == "SE":
         #     x, route_out, route_classifier_out = self.extra_se3(x)
         #     route_outs = torch.cat((route_outs, route_out), 1)
         #     route_classifier_outs.append(route_classifier_out)
-        x = self.extra_relu3(x)
+        x = self.activation(x)
         x = self.extra_conv4(x)
         # ==============================
-        
-        logit = self.fc(x)
 
-        if label is None:
-            # for training
-            return logit, route_outs, route_classifier_outs
+        x = F.interpolate(x, size=size, mode='bilinear', align_corners=True)
 
-        else:
-            # for validation
-            cam = self.cam_normalize(x.detach(), size, label)
+        if label is not None:
+            x = x * label[:, :, None, None]  # clean
 
-            return logit, cam
-
-    
-    def fc(self, x):
-        x = F.avg_pool2d(x, kernel_size=(x.size(2), x.size(3)), padding=0)
-        x = x.view(-1, 20)
         return x
-    
-    
-    def cam_normalize(self, cam, size, label):
-        cam = F.relu(cam)
-        cam = F.interpolate(cam, size=size, mode='bilinear', align_corners=True)
-        cam /= F.adaptive_max_pool2d(cam, 1) + 1e-5
-        
-        cam = cam * label[:, :, None, None] # clean
-        
-        return cam
-    
-    
+
+
     def _initialize_weights(self, layer):
         for m in layer.modules():
             if isinstance(m, nn.Conv2d):
@@ -380,25 +272,6 @@ class VGG(nn.Module):
                     m.bias.data.zero_()
                     
 
-    def get_parameter_groups(self):
-        groups = ([], [], [], [])
-
-        for name, value in self.named_parameters():
-
-            if 'extra' in name or 'fc' in name:
-                if 'weight' in name:
-                    groups[2].append(value)
-                else:
-                    groups[3].append(value)
-            else:
-                if 'weight' in name:
-                    groups[0].append(value)
-                else:
-                    groups[1].append(value)
-        return groups
-
-        
-        
         
 #######################################################################################################
         

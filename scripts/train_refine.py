@@ -16,7 +16,8 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 from models.vgg_refine import vgg16
-from models.resnet_refine import resnet50
+from models.se_vgg_refine import se_vgg16
+from models.resnet_refine import resnet50, resnet18
 from utils.my_optim import reduce_lr
 from utils.avgMeter import AverageMeter
 from utils.LoadData_refine import train_data_loader, valid_data_loader
@@ -46,13 +47,17 @@ def get_arguments():
     parser.add_argument("--global_counter", type=int, default=0)
     parser.add_argument("--alpha", type=float, default=0.20, help='object cues for the pseudo seg map generation')
 
-    parser.add_argument("--model", type=str, default='vgg16')  # 'vgg16', 'resnet50'
+    parser.add_argument("--model", type=str, default='vgg16')  # 'vgg16', 'se_vgg16', 'resnet50', 'resnet18'
 
     return parser.parse_args()
 
 def get_model(args):
     if args.model == 'resnet50':
-        model = resnet50(pretrained=True, num_classes=args.num_classes)
+        model = resnet50(pretrained=True, num_classes=20)
+    elif args.model == 'resnet18':
+        model = resnet18(pretrained=True, num_classes=20)
+    elif args.model == 'se_vgg16':
+        model = se_vgg16(pretrained=True)
     else:
         model = vgg16(pretrained=True)
     # model = vgg16(pretrained=True)

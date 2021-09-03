@@ -21,8 +21,19 @@
 
 
 
-CONFIG=configs/voc12_4gpu.yaml
-LOG_DIR=Deeplabv2_new
+#CONFIG=configs/voc12_4gpu.yaml
+#LOG_DIR=Deeplabv2_new
+#GT_DIR=refined_pseudo_segmentation_labels
+#
+#CUDA_VISIBLE_DEVICES=0,1,2,3 python main_v2.py --config_path ${CONFIG} --gt_path ${GT_DIR} --log_dir ${LOG_DIR}
+
+
+C1=$2
+C2=$3
+
+CONFIG=configs/voc12_2gpu.yaml
+LOG_DIR=$1
 GT_DIR=refined_pseudo_segmentation_labels
 
-CUDA_VISIBLE_DEVICES=0,1,2,3 python main_v2.py --config_path ${CONFIG} --gt_path ${GT_DIR} --log_dir ${LOG_DIR}
+CUDA_VISIBLE_DEVICES=${C1},${C2} python main_v2.py --config_path ${CONFIG} --gt_path ${GT_DIR} --log_dir ${LOG_DIR} \
+--data_root /data_root/WSSS/DRS_log/${LOG_DIR}

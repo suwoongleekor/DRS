@@ -1,4 +1,4 @@
-#sh ./scripts_swlee/run_caas.sh 210827_DRS_NL_SE_VGG_CAAS_c1 0 1 13570 0.3 0.
+#sh ./scripts_swlee/run_baseline.sh 210827_DRS_NL_VGG_BASELINE 2 3 13570 0. 0.55
 #sh ./scripts_swlee/run-caas.sh 210827_DRS_L_SE_VGG_CAAS_c1 2 3 13570 0.3 0.55
 
 CASE=$1
@@ -7,7 +7,7 @@ C2=$3
 VISPORT=$4
 LMDA=$5
 DELTA=$6
-MODEL=se_vgg16
+MODEL=vgg16
 
 
 ## Training Classifier with DRS-CAAS

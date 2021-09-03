@@ -39,6 +39,8 @@ def get_argparser():
     parser.add_argument("--random_seed", type=int, default=1, help="random seed (default: 1)")
     parser.add_argument("--amp", action='store_true', default=False)
     parser.add_argument("--val_interval", type=int, default=500, help="val_interval")
+
+    parser.add_argument("--data_root", type=str, help="training log path")
     
     return parser
                         
@@ -122,7 +124,8 @@ def main():
 
     # Dataset
     train_dataset = get_dataset(CONFIG.DATASET.NAME)(
-        root=CONFIG.DATASET.ROOT,
+        # root=CONFIG.DATASET.ROOT,
+        root=opts.data_root,
         split=CONFIG.DATASET.SPLIT.TRAIN,
         ignore_label=CONFIG.DATASET.IGNORE_LABEL,
         mean_bgr=(CONFIG.IMAGE.MEAN.B, CONFIG.IMAGE.MEAN.G, CONFIG.IMAGE.MEAN.R),
@@ -137,12 +140,14 @@ def main():
     print()
     
     valid_dataset = get_dataset(CONFIG.DATASET.NAME)(
-        root=CONFIG.DATASET.ROOT,
+        # root=CONFIG.DATASET.ROOT,
+        root=opts.data_root,
         split=CONFIG.DATASET.SPLIT.VAL,
         ignore_label=CONFIG.DATASET.IGNORE_LABEL,
         mean_bgr=(CONFIG.IMAGE.MEAN.B, CONFIG.IMAGE.MEAN.G, CONFIG.IMAGE.MEAN.R),
         augment=False,
-        gt_path="SegmentationClassAug",
+        # gt_path="SegmentationClassAug",
+        gt_path="SegmentationClass",
     )
     print(valid_dataset)  
 

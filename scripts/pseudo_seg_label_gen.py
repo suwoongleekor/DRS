@@ -10,7 +10,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from models.vgg_refine import vgg16
-from models.resnet_refine import resnet50
+from models.se_vgg_refine import se_vgg16
+from models.resnet_refine import resnet50, resnet18
 #from models.vgg import vgg16
 from utils.Metrics import IOUMetric
 from utils.LoadData import test_data_loader
@@ -28,7 +29,7 @@ parser.add_argument("--checkpoint", type=str)
 parser.add_argument("--delta", type=float, default=0, help='set 0 for the learnable DRS')
 parser.add_argument("--alpha", type=float, default=0.20)
 
-parser.add_argument("--model", type=str, default='vgg16')  # 'vgg16', 'resnet50'
+parser.add_argument("--model", type=str, default='vgg16')  # 'vgg16', 'se_vgg16', 'resnet50', 'resnet18'
 
 args = parser.parse_args()
 print(args)
@@ -42,13 +43,18 @@ if not os.path.exists(output_dir):
 # model = vgg16()
 if args.model == 'resnet50':
     model = resnet50(num_classes=args.num_classes)
+elif args.model == 'resnet18':
+    model = resnet18(num_classes=args.num_classes)
+elif args.model == 'se_vgg16':
+    model = se_vgg16()
 else:
     model = vgg16()
+
 model = model.cuda()
 model.eval()
     
 ckpt = torch.load(args.checkpoint, map_location='cpu')
-model.load_state_dict(ckpt['model'], strict=True)
+model.load_state_dict(ckpt['model'], strict=False)
 
 
 """ dataloader """
@@ -87,14 +93,14 @@ for idx, dat in enumerate(data_loader):
     pred_map = np.concatenate([bg, localization_maps], axis=0)  # [21, H, W]
     
     pred_map[0, :, :] = (1. - sal_map) # backgroudn cue
-    
+
     # conflict pixels with multiple confidence values
     bg = np.array(pred_map > 0.9, dtype=np.uint8)
     bg = np.sum(bg, axis=0)
     pred_map = pred_map.argmax(0).astype(np.uint8)
     pred_map[bg > 2] = 255
 
-    # pixels regarded as background but confidence saliency values 
+    # pixels regarded as background but confidence saliency values
     bg = (sal_map == 1).astype(np.uint8) * (pred_map == 0).astype(np.uint8)
     pred_map[bg > 0] = 255
     
@@ -102,5 +108,6 @@ for idx, dat in enumerate(data_loader):
     pred_map = Image.fromarray(pred_map)
     pred_map.putpalette(palette)
     pred_map.save(os.path.join(output_dir, "%s.png" % img_name))
-    
+
+
 print("done!")

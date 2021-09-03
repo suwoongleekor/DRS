@@ -11,7 +11,7 @@ DATASET:
     SCALES: [0.5, 0.75, 1.0, 1.25, 1.5]
     SPLIT:
         TRAIN: train_cls
-        VAL: val
+        VAL: val_cls
         TEST: test
 
 DATALOADER:

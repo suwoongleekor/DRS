@@ -14,7 +14,8 @@ import torch.nn.functional as F
 
 # from models.vgg import vgg16
 from models.vgg_CAAS import vgg16
-from models.resnet import resnet50
+from models.se_vgg import se_vgg16
+from models.resnet import resnet50, resnet18
 from utils.my_optim import reduce_lr
 from utils.avgMeter import AverageMeter
 from utils.LoadData import train_data_loader, valid_data_loader
@@ -52,7 +53,7 @@ def get_arguments():
     parser.add_argument("--lambda_cls_aware", type=float, default=0.0)
     parser.add_argument("--lambda_cls", type=float, default=1.0)
     parser.add_argument("--from_scratch", action="store_true")
-    parser.add_argument("--model", type=str, default='vgg16')  # 'vgg16', 'resnet50'
+    parser.add_argument("--model", type=str, default='vgg16')  # 'vgg16', 'se_vgg16', 'resnet50', 'resnet18'
 
     return parser.parse_args()
 
@@ -60,6 +61,10 @@ def get_arguments():
 def get_model(args):
     if args.model == 'resnet50':
         model = resnet50(pretrained=~args.from_scratch, delta=args.delta, num_classes=20)
+    elif args.model == 'resnet18':
+        model = resnet18(pretrained=~args.from_scratch, delta=args.delta, num_classes=20)
+    elif args.model == 'se_vgg16':
+        model = se_vgg16(pretrained=~args.from_scratch, delta=args.delta)
     else:
         model = vgg16(pretrained=~args.from_scratch, delta=args.delta)
 
@@ -214,7 +219,7 @@ def train(current_epoch):
 
         cls_acc_matrix.update(logit, label)
 
-        if args.loss_cls_aware_mode == 'cls_aware':
+        if args.loss_cls_aware_mode == 'cls_aware' and len(route_classifier_outs) > 0:
             cls_aware_acc_matrix.update(route_classifier_outs[-1], label)
 
         train_loss.update(loss.data.item(), img.size()[0])
@@ -229,18 +234,18 @@ def train(current_epoch):
         if global_counter % args.show_interval == 0:
             train_cls_acc = cls_acc_matrix.compute_avg_acc()
 
-            if args.loss_cls_aware_mode == 'cls_aware':
+            if args.loss_cls_aware_mode == 'cls_aware' and len(route_classifier_outs) > 0:
                 train_cls_aware_acc = cls_aware_acc_matrix.compute_avg_acc()
 
             writer.add_scalar('train loss', train_loss.avg, global_counter)
             writer.add_scalar('train loss cls', train_loss_cls.avg, global_counter)
 
-            if args.loss_cls_aware_mode == 'cls_aware':
+            if args.loss_cls_aware_mode == 'cls_aware' and len(route_classifier_outs) > 0:
                 writer.add_scalar('train loss cls aware', train_loss_cls_aware.avg, global_counter)
 
             writer.add_scalar('train acc', train_cls_acc, global_counter)
 
-            if args.loss_cls_aware_mode == 'cls_aware':
+            if args.loss_cls_aware_mode == 'cls_aware' and len(route_classifier_outs) > 0:
                 writer.add_scalar('train acc cls aware', train_cls_aware_acc, global_counter)
 
             print('Epoch: [{}][{}/{}]\t'

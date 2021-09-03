@@ -1,3 +1,4 @@
+# 2x epoch
 #sh ./scripts_swlee/run_caas.sh 210827_DRS_NL_SE_VGG_CAAS_c1 0 1 13570 0.3 0. vgg16
 #sh ./scripts_swlee/run-caas.sh 210827_DRS_L_SE_VGG_CAAS_c1 2 3 13570 0.3 0.55 vgg16
 
@@ -14,8 +15,8 @@ MODEL=$7
 CUDA_VISIBLE_DEVICES=${C1},${C2} python scripts/train_cls.py \
     --img_dir=/data_root/WSSS/DRS_log/${CASE}/ \
     --lr=0.001 \
-    --epoch=30 \
-    --decay_points='10,20' \
+    --epoch=60 \
+    --decay_points='20,40' \
     --delta=${DELTA} \
     --logdir=logs/${CASE} \
     --save_folder=checkpoints/${CASE} \
