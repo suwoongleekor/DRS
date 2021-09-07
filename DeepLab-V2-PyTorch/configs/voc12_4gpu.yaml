@@ -4,7 +4,7 @@ EXP:
 
 DATASET:
     NAME: vocaug
-    ROOT: /data_root/WSSS/DRS_log/DRS_non_learnable
+    ROOT: /data/DB/VOCdevkit
     LABELS: ./data/datasets/voc12/labels.txt
     N_CLASSES: 21
     IGNORE_LABEL: 255

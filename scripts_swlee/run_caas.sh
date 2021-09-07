@@ -55,6 +55,8 @@ MODE=$8
 #
 #rm -rf /data_root/WSSS/DRS_log/${CASE}/localization_maps
 #
+
+
 # Pseudo segmentation label generation
 CUDA_VISIBLE_DEVICES=${C1} python scripts/pseudo_seg_label_gen.py \
     --img_dir=/dataset/WSSS/DRS_log/${CASE}/ \

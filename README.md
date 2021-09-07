@@ -1,9 +1,10 @@
 # Under construction
 
 refined_pseudo_segmentation_labels_DRS_CAAS2:_
-
 https://www.dropbox.com/s/jbd39bm7x2y9pjs/refined_pseudo_segmentation_labels_DRS_CAAS2.zip?dl=0
 
+CAAS-DRS ckpt
+https://www.dropbox.com/s/x0ko3ho9icndrn2/best_deeplabv3plus_resnet101_voc_os16.pth?dl=0
 
 
 

@@ -26,8 +26,6 @@ from libs.models import *
 from libs.utils import PolynomialLR
 from libs.utils.stream_metrics import StreamSegMetrics, AverageMeter
 
-import pudb
-
 def get_argparser():
     parser = argparse.ArgumentParser()
 
@@ -38,9 +36,7 @@ def get_argparser():
     parser.add_argument("--cuda", type=bool, default=True, help="GPU")
     parser.add_argument("--random_seed", type=int, default=1, help="random seed (default: 1)")
     parser.add_argument("--amp", action='store_true', default=False)
-    parser.add_argument("--val_interval", type=int, default=500, help="val_interval")
-
-    parser.add_argument("--data_root", type=str, help="training log path")
+    parser.add_argument("--val_interval", type=int, default=100, help="val_interval")
     
     return parser
                         
@@ -120,12 +116,9 @@ def main():
     device = get_device(opts.cuda)
     torch.backends.cudnn.benchmark = True
 
-    # pu.db
-
     # Dataset
     train_dataset = get_dataset(CONFIG.DATASET.NAME)(
-        # root=CONFIG.DATASET.ROOT,
-        root=opts.data_root,
+        root=CONFIG.DATASET.ROOT,
         split=CONFIG.DATASET.SPLIT.TRAIN,
         ignore_label=CONFIG.DATASET.IGNORE_LABEL,
         mean_bgr=(CONFIG.IMAGE.MEAN.B, CONFIG.IMAGE.MEAN.G, CONFIG.IMAGE.MEAN.R),
@@ -140,14 +133,12 @@ def main():
     print()
     
     valid_dataset = get_dataset(CONFIG.DATASET.NAME)(
-        # root=CONFIG.DATASET.ROOT,
-        root=opts.data_root,
+        root=CONFIG.DATASET.ROOT,
         split=CONFIG.DATASET.SPLIT.VAL,
         ignore_label=CONFIG.DATASET.IGNORE_LABEL,
         mean_bgr=(CONFIG.IMAGE.MEAN.B, CONFIG.IMAGE.MEAN.G, CONFIG.IMAGE.MEAN.R),
         augment=False,
-        # gt_path="SegmentationClassAug",
-        gt_path="SegmentationClass",
+        gt_path="SegmentationClassAug",
     )
     print(valid_dataset)  
 

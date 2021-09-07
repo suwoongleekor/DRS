@@ -4,14 +4,14 @@ EXP:
 
 DATASET:
     NAME: vocaug
-    ROOT: /data_root/WSSS/DRS_log/DRS_non_learnable
+    ROOT: /data/DB/
     LABELS: ./data/datasets/voc12/labels.txt
     N_CLASSES: 21
     IGNORE_LABEL: 255
     SCALES: [0.5, 0.75, 1.0, 1.25, 1.5]
     SPLIT:
-        TRAIN: train_aug
-        VAL: val
+        TRAIN: train_cls
+        VAL: val_cls
         TEST: test
 
 DATALOADER:
